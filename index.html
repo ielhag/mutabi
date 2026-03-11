@@ -67,7 +67,7 @@
   select,input{
     width:100%;background:var(--bg);border:1px solid var(--border);
     border-radius:9px;color:var(--text);
-    font-size:0.92rem;padding:10px 12px;outline:none;
+    font-size:0.92rem;padding:11px 12px;outline:none;min-height:44px;
     -webkit-appearance:none;appearance:none;
   }
   body.lang-en select,body.lang-en input{font-family:'Inter',sans-serif;}
@@ -75,14 +75,14 @@
   select:focus,input:focus{border-color:var(--gold);}
   select option{background:var(--surface2);}
 
-  .start-btn{
+  .start-btn{min-height:50px;
     width:100%;padding:14px;border-radius:11px;border:none;
     background:var(--gold);color:#0a0a0a;
     font-size:0.95rem;font-weight:700;cursor:pointer;
     transition:opacity 0.2s,transform 0.1s;letter-spacing:0.02em;
   }
-  body.lang-en .start-btn{font-family:'Inter',sans-serif;}
-  body.lang-ar .start-btn{font-family:'Tajawal',sans-serif;}
+  body.lang-en .start-btn{min-height:50px;font-family:'Inter',sans-serif;}
+  body.lang-ar .start-btn{min-height:50px;font-family:'Tajawal',sans-serif;}
   .start-btn:active{transform:scale(0.98);opacity:0.85;}
   .start-btn:disabled{opacity:0.35;cursor:not-allowed;}
 
@@ -173,7 +173,7 @@
 
   .nav-row{display:flex;gap:9px;}
   .nav-btn{
-    flex:1;padding:14px 8px;border-radius:11px;
+    flex:1;padding:16px 8px;border-radius:11px;min-height:54px;
     border:1px solid var(--border);background:var(--surface2);color:var(--text);
     font-size:0.9rem;font-weight:500;cursor:pointer;
     transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:6px;
@@ -184,7 +184,7 @@
   .nav-btn svg{width:16px;height:16px;color:var(--gold);flex-shrink:0;}
 
   .mic-btn{
-    width:52px;height:52px;border-radius:12px;flex-shrink:0;
+    width:58px;height:58px;border-radius:14px;flex-shrink:0;
     border:1px solid var(--border);background:var(--surface2);
     color:var(--text-dim);cursor:pointer;
     display:flex;align-items:center;justify-content:center;
@@ -247,8 +247,45 @@
   body.lang-en .retry-btn{font-family:'Inter',sans-serif;}
   body.lang-ar .retry-btn{font-family:'Tajawal',sans-serif;}
 
-  /* TOAST */
-  .toast{
+  /* ══ MOBILE RESPONSIVE ══ */
+  @media (max-width: 480px) {
+    /* Topbar tighter on phone */
+    .topbar { padding: max(env(safe-area-inset-top),10px) 10px 9px; }
+    .surah-label { font-size: 0.75rem; }
+    .juz-label   { font-size: 0.65rem; }
+    .icon-btn    { width: 30px; height: 30px; border-radius: 7px; }
+    .topbar-actions { gap: 4px; }
+
+    /* Ayah text bigger by default on phone — holding farther away */
+    .ayah-container { padding: 10px 10px 200px; }
+    .ayah-block.active { padding: 14px 10px; margin: 0 -6px; width: calc(100% + 12px); }
+
+    /* Bottom bar — taller tap targets */
+    .bottom-bar { padding: 8px 10px max(env(safe-area-inset-bottom),16px); gap: 7px; }
+    .nav-btn    { padding: 14px 6px; min-height: 50px; font-size: 0.85rem; }
+    .mic-btn    { width: 54px; height: 54px; }
+    .mic-btn svg{ width: 20px; height: 20px; }
+    .voice-hint { font-size: 0.65rem; }
+
+    /* Jump panel full-width on phone */
+    .jump-card  { max-width: 100%; border-radius: 14px 14px 0 0; }
+    #jumpPanel  { align-items: flex-end; padding: 0; }
+  }
+
+  /* Very small phones */
+  @media (max-width: 360px) {
+    .nav-btn { font-size: 0.78rem; padding: 12px 4px; }
+  }
+
+  /* Landscape phone — reduce vertical space */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .bottom-bar { gap: 4px; padding-bottom: max(env(safe-area-inset-bottom),6px); }
+    .nav-btn    { min-height: 40px; padding: 10px 6px; }
+    .mic-btn    { width: 44px; height: 44px; }
+    .voice-hint { display: none; }
+    .progress-row { margin-bottom: 0; }
+  }
+
     position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
     background:rgba(201,168,76,0.92);color:#0a0a0a;
     border-radius:10px;padding:10px 22px;
@@ -266,6 +303,12 @@
   <div class="splash-bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
   <div class="splash-title-ar">مُتابِع · تلاوة القرآن</div>
   <div class="splash-title-en">MUTABI' · QURAN FOLLOW-ALONG</div>
+
+  <!-- iOS non-Safari warning — shown by JS if needed -->
+  <div id="iosBanner" style="display:none;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.35);border-radius:10px;padding:10px 14px;margin-bottom:14px;width:100%;max-width:420px;font-size:0.78rem;color:var(--gold);text-align:center;line-height:1.5;">
+    📱 للميكروفون: افتح في <strong>Safari</strong> بدل Chrome<br>
+    <span style="color:var(--text-dim);font-size:0.72rem;">For voice on iPhone, open in Safari — not Chrome</span>
+  </div>
 
   <div class="lang-toggle">
     <button id="langAr" class="active" onclick="setLang('ar')">العربية</button>
@@ -527,10 +570,10 @@ let fontSizeMode = 'medium';
 let lang = 'ar'; // 'ar' | 'en'
 
 const FONT_SIZES = {
-  small:  { far:'1.1rem', near:'1.3rem', active:'1.65rem' },
-  medium: { far:'1.3rem', near:'1.55rem', active:'2rem'   },
-  large:  { far:'1.5rem', near:'1.8rem', active:'2.4rem' },
-  xlarge: { far:'1.7rem', near:'2.1rem', active:'2.9rem' }
+  small:  { far:'1.2rem', near:'1.45rem', active:'1.85rem' },
+  medium: { far:'1.45rem', near:'1.75rem', active:'2.2rem'  },
+  large:  { far:'1.65rem', near:'2.0rem',  active:'2.6rem'  },
+  xlarge: { far:'1.9rem',  near:'2.3rem',  active:'3.1rem'  }
 };
 const fontOrder = ['small','medium','large','xlarge'];
 
@@ -675,7 +718,12 @@ function applyActive(idx, instant) {
   const activeBlock = blocks[idx];
   if (activeBlock) {
     const top = activeBlock.offsetTop - quranScroll.clientHeight/2 + activeBlock.clientHeight/2;
-    instant ? (quranScroll.scrollTop = top) : quranScroll.scrollTo({top, behavior:'smooth'});
+    if (instant) {
+      quranScroll.scrollTop = top;
+    } else {
+      // smooth scroll polyfill — iOS Safari ignores scrollTo behavior:'smooth'
+      smoothScrollTo(quranScroll, top, 320);
+    }
   }
   updateHUD();
 }
@@ -716,8 +764,26 @@ function flash(msg) {
 }
 
 // ══════════════════════════════════════════════════════
+// SMOOTH SCROLL POLYFILL (iOS Safari ignores native smooth)
 // ══════════════════════════════════════════════════════
-// ARABIC NORMALIZATION (same engine as original teleprompter)
+function smoothScrollTo(el, target, duration) {
+  const start = el.scrollTop;
+  const diff  = target - start;
+  if (Math.abs(diff) < 2) return;
+  let startTime = null;
+  function step(ts) {
+    if (!startTime) startTime = ts;
+    const elapsed = ts - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    // ease-out cubic
+    const ease = 1 - Math.pow(1 - progress, 3);
+    el.scrollTop = start + diff * ease;
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ══════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════
 const MATCH_RATIO  = 0.35;   // 35% of ayah words must match — very lenient
 const BUF_MAX      = 120;    // rolling word buffer size
@@ -766,37 +832,63 @@ function ayahMatches(ayahText, buf) {
 }
 
 // ══════════════════════════════════════════════════════
-// VOICE — same settings as original teleprompter
+// VOICE ENGINE — iOS Safari + Chrome desktop compatible
 // ══════════════════════════════════════════════════════
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+// iOS detection
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+// Chrome on iOS uses WKWebView — Apple blocks SpeechRecognition there entirely
+// Only Safari on iOS supports it via webkitSpeechRecognition
+const isIOSChrome = isIOS && /CriOS/.test(navigator.userAgent);
+const isIOSSafari = isIOS && !isIOSChrome && /Safari/.test(navigator.userAgent);
+
+// Show iOS Chrome warning on splash immediately
+if (isIOSChrome) {
+  const banner = document.getElementById('iosBanner');
+  if (banner) banner.style.display = 'block';
+}
+
 let voiceBuffer = [];
 let lastVoiceAdvance = 0;
 let voiceDrainTimer = null;
+let iosRestartTimer = null;
 
 function setupVoice() {
-  if (!SR) {
-    micBtn.style.opacity = '0.3';
-    document.querySelector('#voiceHint .t').textContent = lang === 'ar'
-      ? 'التعرف على الصوت غير مدعوم — استخدم Chrome'
-      : 'Voice recognition not supported — use Chrome';
+  if (!SR || isIOSChrome) {
+    micBtn.style.opacity = '0.35';
+    if (isIOSChrome) {
+      setVoiceStatus('⚠️ افتح في Safari — Chrome لا يدعم الميك في iOS');
+    } else {
+      setVoiceStatus(lang==='ar'
+        ? '⚠️ التعرف على الصوت غير مدعوم — استخدم Chrome أو Safari'
+        : '⚠️ Voice not supported — use Chrome or Safari');
+    }
     return;
   }
+
+  if (recognition) { try { recognition.abort(); } catch(e){} }
   recognition = new SR();
-  recognition.lang           = 'ar-SA';   // always Arabic for Quran
-  recognition.continuous     = true;
-  recognition.interimResults = true;       // KEY: process partial speech as it arrives
-  recognition.maxAlternatives = 2;         // check 2 hypotheses per result
+  recognition.lang            = 'ar-SA';
+  recognition.interimResults  = true;
+  recognition.maxAlternatives = 3;
+  // iOS Safari MUST use continuous:false — it crashes silently with true
+  // Desktop Chrome works best with continuous:true
+  recognition.continuous = !isIOS;
 
   recognition.onstart = () => {
     setVoiceStatus(lang==='ar' ? '🔴 يستمع...' : '🔴 Listening...');
   };
 
   recognition.onresult = e => {
-    let interimText = '';
+    let interimTxt = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      // Collect all alternatives
       let txt = '';
       for (let j = 0; j < e.results[i].length; j++) txt += ' ' + e.results[i][j].transcript;
+      txt = txt.trim();
+      if (!txt) continue;
 
       if (e.results[i].isFinal) {
         const words = tokeniseAr(txt);
@@ -804,12 +896,21 @@ function setupVoice() {
         if (voiceBuffer.length > BUF_MAX) voiceBuffer = voiceBuffer.slice(-BUF_MAX);
         scheduleVoiceDrain();
       } else {
-        interimText += txt;
+        interimTxt += ' ' + txt;
+        // iOS Safari: isFinal often never fires for short ayahs
+        // process interim immediately too
+        if (isIOS) {
+          const words = tokeniseAr(txt);
+          if (words.length) {
+            voiceBuffer.push(...words);
+            if (voiceBuffer.length > BUF_MAX) voiceBuffer = voiceBuffer.slice(-BUF_MAX);
+            scheduleVoiceDrain();
+          }
+        }
       }
     }
-    // Show interim in hint while speaking
-    if (interimText.trim()) {
-      setVoiceStatus('🎙 ' + interimText.trim().slice(0, 40));
+    if (interimTxt.trim()) {
+      setVoiceStatus('🎙 ' + interimTxt.trim().slice(0, 50));
     }
   };
 
@@ -817,19 +918,45 @@ function setupVoice() {
   recognition.onspeechend   = () => setVoiceStatus(lang==='ar' ? '⏳ معالجة...' : '⏳ Processing...');
 
   recognition.onerror = e => {
-    if (e.error === 'no-speech') {
+    const ignored = ['no-speech', 'aborted', 'network'];
+    if (ignored.includes(e.error)) {
       setVoiceStatus(lang==='ar' ? '🔴 في انتظار الكلام...' : '🔴 Waiting for speech...');
+      if (recognizing && isIOS) scheduleIosRestart();
       return;
     }
     if (e.error === 'not-allowed') {
-      alert(lang==='ar' ? 'اسمح بالوصول للميكروفون في إعدادات المتصفح' : 'Allow microphone access in browser settings');
+      const msg = isIOS
+        ? (lang==='ar'
+          ? 'اسمح بالميكروفون:\nالإعدادات ← Safari ← الميكروفون ← مسموح'
+          : 'Allow mic:\nSettings → Safari → Microphone → Allow')
+        : (lang==='ar' ? 'اسمح بالوصول للميكروفون في المتصفح' : 'Allow microphone in browser settings');
+      alert(msg);
       recognizing = false; updateMicUI();
     }
   };
 
   recognition.onend = () => {
-    if (recognizing) { try { recognition.start(); } catch(e) {} }
+    if (recognizing) {
+      // iOS Safari ends after each utterance — must restart
+      if (isIOS) {
+        scheduleIosRestart();
+      } else {
+        try { recognition.start(); } catch(e) {}
+      }
+    }
   };
+}
+
+function scheduleIosRestart() {
+  clearTimeout(iosRestartTimer);
+  iosRestartTimer = setTimeout(() => {
+    if (!recognizing) return;
+    try { recognition.start(); } catch(e) {
+      // recognition object may be dead on iOS — rebuild it
+      setupVoice();
+      try { recognition.start(); } catch(e2) {}
+    }
+  }, 300);
 }
 
 function scheduleVoiceDrain() {
@@ -844,14 +971,13 @@ function voiceDrainStep() {
   const wait = Math.max(0, MIN_GAP_MS - (Date.now() - lastVoiceAdvance));
   voiceDrainTimer = setTimeout(() => {
     if (curIdx >= ayahs.length || !ayahMatches(ayahs[curIdx]?.text || '', voiceBuffer)) return;
-    // consume matched words from buffer
     const words = tokeniseAr(ayahs[curIdx].text).filter(isMeaningful);
     let buf = [...voiceBuffer];
     for (const lw of words) { const i = buf.findIndex(bw => wordsMatch(bw, lw)); if (i !== -1) buf.splice(i, 1); }
     voiceBuffer = buf;
     lastVoiceAdvance = Date.now();
-    goNextSilent();      // advance without toast
-    voiceDrainStep();    // chain to next ayah immediately if buffer has enough
+    goNextSilent();
+    voiceDrainStep();
   }, wait);
 }
 
@@ -865,16 +991,36 @@ function setVoiceStatus(msg) {
 }
 
 function toggleMic() {
-  if (!recognition) { setupVoice(); if (!recognition) return; }
+  if (!SR) {
+    // No SR at all — show instructions depending on platform
+    if (isIOS) {
+      alert(lang==='ar'
+        ? 'للاستخدام على iPhone:\n١. افتح هذا الرابط في Safari (ليس Chrome)\n٢. اضغط الميك مرة أخرى'
+        : 'To use voice on iPhone:\n1. Open this page in Safari (not Chrome)\n2. Tap mic again');
+    }
+    return;
+  }
+  if (!recognition) setupVoice();
+  if (!recognition) return;
+
   recognizing = !recognizing;
   if (recognizing) {
     voiceBuffer = [];
-    try { recognition.start(); } catch(e) {}
-    setVoiceStatus(lang==='ar' ? '🔴 يستمع... تكلم والسطر يتقدم تلقائياً' : '🔴 Listening... speak and it follows');
-    voiceHint.classList.add('active');
+    try { recognition.start(); } catch(e) {
+      // Might need rebuild if object is stale
+      setupVoice();
+      try { recognition.start(); } catch(e2) { recognizing = false; }
+    }
+    if (recognizing) {
+      setVoiceStatus(lang==='ar'
+        ? (isIOS ? '🔴 يستمع... (Safari مُوصى به)' : '🔴 يستمع... تكلم والسطر يتقدم')
+        : (isIOS ? '🔴 Listening... (Safari recommended)' : '🔴 Listening... speak and it follows'));
+      voiceHint.classList.add('active');
+    }
   } else {
-    try { recognition.stop(); } catch(e) {}
+    clearTimeout(iosRestartTimer);
     clearTimeout(voiceDrainTimer);
+    try { recognition.stop(); } catch(e) {}
     voiceBuffer = [];
     setVoiceStatus(lang==='ar'
       ? 'اضغط الميك — يتابع الإمام تلقائياً بالصوت'
@@ -988,12 +1134,21 @@ ayahContainer.addEventListener('click', e => {
   if (b) { const i=parseInt(b.dataset.idx); if(!isNaN(i)){curIdx=i;applyActive(curIdx);} }
 });
 
-// Swipe
-let swipeY=0;
-quranScroll.addEventListener('touchstart',e=>{swipeY=e.touches[0].clientY;},{passive:true});
+// Swipe — only trigger on fast deliberate swipes, not normal scrolling
+let swipeStartY=0, swipeStartX=0, swipeStartTime=0;
+quranScroll.addEventListener('touchstart',e=>{
+  swipeStartY=e.touches[0].clientY;
+  swipeStartX=e.touches[0].clientX;
+  swipeStartTime=Date.now();
+},{passive:true});
 quranScroll.addEventListener('touchend',e=>{
-  const d=swipeY-e.changedTouches[0].clientY;
-  if(Math.abs(d)>80&&Math.abs(d)<180){d>0?goNext():goPrev();}
+  const dy=swipeStartY-e.changedTouches[0].clientY;
+  const dx=Math.abs(swipeStartX-e.changedTouches[0].clientX);
+  const dt=Date.now()-swipeStartTime;
+  // Only trigger if: fast (<300ms), mostly vertical (not horizontal swipe), big enough
+  if(dt<300 && Math.abs(dy)>60 && Math.abs(dy)>dx*1.5){
+    dy>0?goNext():goPrev();
+  }
 },{passive:true});
 
 // Keyboard
@@ -1018,6 +1173,16 @@ document.addEventListener('visibilitychange',async()=>{
 // ══════════════════════════════════════════════════════
 populateSelects();
 setLang('ar'); // default Arabic
+
+// Show iOS Chrome warning if applicable
+(function() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  if (isIOS && !isSafari) {
+    document.getElementById('iosBanner').style.display = 'block';
+  }
+})();
 </script>
 </body>
 </html>
