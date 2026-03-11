@@ -160,6 +160,16 @@
   }
   .ayah-block.active .ayah-num{border-color:var(--gold);color:var(--gold);opacity:1;}
 
+  /* Chunk label for multi-part long ayahs */
+  .chunk-label {
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:1px 8px;border-radius:10px;
+    border:1px solid currentColor;font-size:0.6rem;
+    font-family:'Inter',sans-serif;vertical-align:middle;
+    margin-right:4px;opacity:0.45;flex-shrink:0;letter-spacing:0.02em;
+  }
+  .ayah-block.active .chunk-label{border-color:var(--gold);color:var(--gold);opacity:1;}
+
   /* BOTTOM BAR */
   .bottom-bar{
     flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);
@@ -677,6 +687,75 @@ async function fetchSurah(surahNum) {
 }
 
 // ══════════════════════════════════════════════════════
+// CHUNKING — split long ayahs at Quran pause marks
+// ══════════════════════════════════════════════════════
+const CHUNK_THRESHOLD = 120; // stripped chars before we chunk
+const PAUSE_RE = /([ۚۖۗۙۛۜ۩])/g; // Quran waqf marks
+
+function stripForLength(text) {
+  // strip tashkeel to get real character count
+  return text.replace(/[\u064B-\u065F\u0670\u0640\u0671]/g,'').replace(/\s+/g,' ').trim();
+}
+
+// Returns array of {text, ayahIdx, chunkIdx, isLastChunk, ayahNum}
+function buildDisplayBlocks(ayahsArr) {
+  const blocks = [];
+  ayahsArr.forEach((a, ayahIdx) => {
+    const stripped = stripForLength(a.text);
+    if (stripped.length <= CHUNK_THRESHOLD) {
+      // Short ayah — single block
+      blocks.push({ text: a.text, ayahIdx, chunkIdx: 0, isLastChunk: true, ayahNum: a.num, totalChunks: 1 });
+    } else {
+      // Long ayah — split at pause marks, keeping the mark at end of each chunk
+      const parts = a.text.split(PAUSE_RE);
+      // Recombine: each pause mark attaches to the preceding segment
+      const chunks = [];
+      let current = '';
+      for (const part of parts) {
+        if (/[ۚۖۗۙۛۜ۩]/.test(part)) {
+          current += part;
+          if (current.trim()) chunks.push(current.trim());
+          current = '';
+        } else {
+          current += part;
+        }
+      }
+      if (current.trim()) chunks.push(current.trim()); // remainder
+
+      // Filter empty and merge tiny trailing chunks into previous
+      const finalChunks = [];
+      for (const c of chunks) {
+        if (stripForLength(c).length < 8 && finalChunks.length > 0) {
+          finalChunks[finalChunks.length-1] += ' ' + c;
+        } else {
+          finalChunks.push(c);
+        }
+      }
+
+      finalChunks.forEach((chunkText, ci) => {
+        blocks.push({
+          text: chunkText,
+          ayahIdx,
+          chunkIdx: ci,
+          isLastChunk: ci === finalChunks.length - 1,
+          ayahNum: a.num,
+          totalChunks: finalChunks.length
+        });
+      });
+    }
+  });
+  return blocks;
+}
+
+let displayBlocks = []; // built after ayahs loaded
+let curBlock = 0;       // index into displayBlocks
+
+// Given an ayahIdx, find the first displayBlock for it
+function blockIdxForAyah(ayahIdx) {
+  return displayBlocks.findIndex(b => b.ayahIdx === ayahIdx);
+}
+
+// ══════════════════════════════════════════════════════
 // RENDER
 // ══════════════════════════════════════════════════════
 function renderAyahs() {
@@ -693,36 +772,52 @@ function renderAyahs() {
   ayahContainer.appendChild(header);
 
   const sz = FONT_SIZES[fontSizeMode];
-  ayahs.forEach((a, i) => {
+  displayBlocks.forEach((b, i) => {
     const block = document.createElement('div');
     block.className = 'ayah-block far';
-    block.dataset.idx = i;
-    block.innerHTML = `<div class="ayah-text" style="font-size:${sz.far}">${a.text} <span class="ayah-num">${a.num}</span></div>`;
+    block.dataset.bidx = i;          // block index
+    block.dataset.aidx = b.ayahIdx;  // ayah index (for tap navigation)
+
+    // Chunk label for multi-chunk ayahs
+    const chunkLabel = b.totalChunks > 1
+      ? `<span class="chunk-label">${b.ayahNum}${b.totalChunks > 1 ? ` · ${b.chunkIdx+1}/${b.totalChunks}` : ''}</span>`
+      : `<span class="ayah-num">${b.ayahNum}</span>`;
+
+    block.innerHTML = `<div class="ayah-text" style="font-size:${sz.far}">${b.text} ${chunkLabel}</div>`;
     ayahContainer.appendChild(block);
   });
-  applyActive(curIdx, true);
+  applyActive(curBlock, true);
 }
 
-function applyActive(idx, instant) {
+function applyActive(bIdx, instant) {
   const sz = FONT_SIZES[fontSizeMode];
   const blocks = ayahContainer.querySelectorAll('.ayah-block');
-  blocks.forEach((b, i) => {
-    b.classList.remove('active','near','far');
-    const dist = Math.abs(i - idx);
-    let state = i===idx ? 'active' : dist<=2 ? 'near' : 'far';
-    b.classList.add(state);
-    const t = b.querySelector('.ayah-text');
+  blocks.forEach((el, i) => {
+    el.classList.remove('active','near','far');
+    const dist = Math.abs(i - bIdx);
+    const state = i===bIdx ? 'active' : dist<=2 ? 'near' : 'far';
+    el.classList.add(state);
+    const t = el.querySelector('.ayah-text');
     if (t) t.style.fontSize = sz[state];
   });
 
-  const activeBlock = blocks[idx];
-  if (activeBlock) {
-    const top = activeBlock.offsetTop - quranScroll.clientHeight/2 + activeBlock.clientHeight/2;
+  // Sync curIdx to the ayah this block belongs to
+  if (displayBlocks[bIdx]) curIdx = displayBlocks[bIdx].ayahIdx;
+
+  const activeEl = blocks[bIdx];
+  if (activeEl) {
+    // Center active block — but cap so we don't over-scroll
+    const scrollH  = quranScroll.clientHeight;
+    const blockH   = activeEl.clientHeight;
+    const blockTop = activeEl.offsetTop;
+    // For tall blocks: align top of block to 15% from top of viewport
+    const target = blockH > scrollH * 0.6
+      ? blockTop - scrollH * 0.12
+      : blockTop - scrollH / 2 + blockH / 2;
     if (instant) {
-      quranScroll.scrollTop = top;
+      quranScroll.scrollTop = Math.max(0, target);
     } else {
-      // smooth scroll polyfill — iOS Safari ignores scrollTo behavior:'smooth'
-      smoothScrollTo(quranScroll, top, 320);
+      smoothScrollTo(quranScroll, Math.max(0, target), 320);
     }
   }
   updateHUD();
@@ -733,11 +828,16 @@ function applyActive(idx, instant) {
 // ══════════════════════════════════════════════════════
 function updateHUD() {
   if (!currentSurah || !ayahs.length) return;
-  const a = ayahs[curIdx];
+  const b = displayBlocks[curBlock];
+  if (!b) return;
+  const a = ayahs[b.ayahIdx];
   const sName = lang==='en' ? `${currentSurah.n}. ${currentSurah.en}` : `${currentSurah.n}. ${currentSurah.ar}`;
-  topSurah.textContent = `${sName} — ${lang==='ar'?'آية':'Ayah'} ${a.num}`;
+  const ayahLabel = lang==='ar' ? 'آية' : 'Ayah';
+  topSurah.textContent = b.totalChunks > 1
+    ? `${sName} — ${ayahLabel} ${a.num} (${b.chunkIdx+1}/${b.totalChunks})`
+    : `${sName} — ${ayahLabel} ${a.num}`;
   topJuz.textContent = `${lang==='ar'?'الجزء':'Juz'} ${currentSurah.juz}`;
-  const pct = Math.round(curIdx/(ayahs.length-1)*100);
+  const pct = Math.round(b.ayahIdx / (ayahs.length-1) * 100);
   progressFill.style.width = pct+'%';
   progressLabel.textContent = `${a.num} / ${currentSurah.ayat}`;
 }
@@ -746,13 +846,21 @@ function updateHUD() {
 // NAVIGATION
 // ══════════════════════════════════════════════════════
 function goNext() {
-  if (curIdx < ayahs.length-1) { curIdx++; applyActive(curIdx); flash('⬇'); }
-  else flash(lang==='ar'?'نهاية السورة':'End of Surah');
+  if (curBlock < displayBlocks.length-1) {
+    curBlock++; applyActive(curBlock); flash('⬇');
+  } else flash(lang==='ar'?'نهاية السورة':'End of Surah');
 }
 function goPrev() {
-  if (curIdx > 0) { curIdx--; applyActive(curIdx); flash('⬆'); }
+  if (curBlock > 0) { curBlock--; applyActive(curBlock); flash('⬆'); }
 }
-function goHome() { curIdx=0; applyActive(curIdx,true); flash('⏮'); }
+function goHome() { curBlock=0; applyActive(curBlock,true); flash('⏮'); }
+// Silent advance for voice — goes to next AYAH (skips remaining chunks)
+function goNextSilent() {
+  const nextAyahIdx = curIdx + 1;
+  if (nextAyahIdx >= ayahs.length) return;
+  const nextBlock = blockIdxForAyah(nextAyahIdx);
+  if (nextBlock >= 0) { curBlock = nextBlock; applyActive(curBlock); }
+}
 
 // ══════════════════════════════════════════════════════
 // TOAST
@@ -988,10 +1096,6 @@ function voiceDrainStep() {
   }, wait);
 }
 
-function goNextSilent() {
-  if (curIdx < ayahs.length - 1) { curIdx++; applyActive(curIdx); }
-}
-
 function setVoiceStatus(msg) {
   const hint = document.querySelector('#voiceHint .t');
   if (hint) hint.textContent = msg;
@@ -1056,8 +1160,11 @@ async function doJump() {
   const aNum = parseInt(jumpAyahInput.value)||1;
   jumpPanel.classList.remove('vis');
   if (sNum === currentSurah?.n) {
-    const idx = ayahs.findIndex(a=>a.num>=aNum);
-    curIdx = idx>=0?idx:0; applyActive(curIdx);
+    const ayahIdx = ayahs.findIndex(a=>a.num>=aNum);
+    curIdx   = ayahIdx>=0 ? ayahIdx : 0;
+    curBlock = blockIdxForAyah(curIdx);
+    if (curBlock < 0) curBlock = 0;
+    applyActive(curBlock);
   } else { await loadSurah(sNum, aNum); }
 }
 
@@ -1077,8 +1184,13 @@ async function loadSurah(surahNum, startAyah=1) {
 
   try {
     ayahs = await fetchSurah(surahNum);
-    const idx = ayahs.findIndex(a=>a.num>=startAyah);
-    curIdx = idx>=0?idx:0;
+    // Build display blocks (chunked for long ayahs)
+    displayBlocks = buildDisplayBlocks(ayahs);
+    // Find starting block
+    const ayahIdx = ayahs.findIndex(a=>a.num>=startAyah);
+    curIdx   = ayahIdx>=0 ? ayahIdx : 0;
+    curBlock = blockIdxForAyah(curIdx);
+    if (curBlock < 0) curBlock = 0;
     renderAyahs();
   } catch(e) {
     const errMsg = lang==='ar'
@@ -1151,7 +1263,10 @@ voiceHint.addEventListener('click', () => {
 // Tap ayah
 ayahContainer.addEventListener('click', e => {
   const b = e.target.closest('.ayah-block');
-  if (b) { const i=parseInt(b.dataset.idx); if(!isNaN(i)){curIdx=i;applyActive(curIdx);} }
+  if (b) {
+    const bi = parseInt(b.dataset.bidx);
+    if (!isNaN(bi)) { curBlock = bi; applyActive(curBlock); }
+  }
 });
 
 // Swipe — only trigger on fast deliberate swipes, not normal scrolling
