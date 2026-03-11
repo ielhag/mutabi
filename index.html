@@ -785,24 +785,25 @@ function smoothScrollTo(el, target, duration) {
 
 // ══════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════
-const MATCH_RATIO  = 0.35;   // 35% of ayah words must match — very lenient
-const BUF_MAX      = 120;    // rolling word buffer size
-const MIN_GAP_MS   = 250;    // min ms between auto-advances
+const MATCH_RATIO  = 0.25;   // 25% — very lenient, Quran speech recognition is imprecise
+const BUF_MAX      = 150;    // bigger buffer
+const MIN_GAP_MS   = 180;    // faster advance
 
+// Don't over-filter Quran — keep stopwords minimal
 const STOPWORDS = new Set([
-  'في','من','على','إلى','عن','مع','هذا','هذه','ذلك','التي','الذي',
-  'أن','لا','ما','هو','هي','كل','قد','لو','وان','عند','بدون',
-  'ان','هم','هن','نحن','انتم','وا','قال','قالت'
+  'هذا','هذه','ذلك','التي','الذي','هم','هن','نحن','انتم'
 ]);
 const PREFIXES = ['وال','فال','بال','كال','ال','وا','فا','و','ف','ل','ب','ك'];
 
 function normAr(w) {
   return w
-    .replace(/[\u064B-\u065F\u0670\u0640]/g,'')   // strip tashkeel/harakat
-    .replace(/[أإآٱ]/g,'ا')                        // normalize alef variants
-    .replace(/ة/g,'ه')                             // ta marbuta → ha
-    .replace(/ى/g,'ي')                             // alef maqsura → ya
-    .replace(/ؤ/g,'و').replace(/ئ/g,'ي')           // hamza variants
+    .replace(/[\u064B-\u065F\u0670\u0640]/g,'')   // strip all tashkeel + shadda + tatweel
+    .replace(/\u0671/g,'ا')                         // alef wasla (ٱ) → alef — KEY FIX for Quran API text
+    .replace(/[أإآٱ]/g,'ا')                         // all alef variants → bare alef
+    .replace(/ة/g,'ه')                              // ta marbuta → ha
+    .replace(/ى/g,'ي')                              // alef maqsura → ya
+    .replace(/ؤ/g,'و').replace(/ئ/g,'ي')            // hamza on waw/ya
+    .replace(/ـ/g,'')                               // tatweel
     .trim();
 }
 function allForms(w) {
@@ -812,10 +813,11 @@ function allForms(w) {
   return [...s];
 }
 function tokeniseAr(text) {
-  return (text.match(/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]{2,}/g) || [])
-    .map(normAr).filter(w => w.length >= 2);
+  return (text.match(/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF\u0671]{2,}/g) || [])
+    .map(normAr).filter(w => w.length >= 2);  // min 2 chars, not 3 — catches short Quran words
 }
-function isMeaningful(w) { return w.length >= 3 && !STOPWORDS.has(w); }
+// A word is meaningful if >= 2 chars and not a stopword
+function isMeaningful(w) { return w.length >= 2 && !STOPWORDS.has(w); }
 function wordsMatch(a, b) {
   for (const x of allForms(a)) for (const y of allForms(b)) {
     if (x === y) return true;
@@ -828,7 +830,9 @@ function wordsMatch(a, b) {
 function ayahMatches(ayahText, buf) {
   const words = tokeniseAr(ayahText).filter(isMeaningful);
   if (!words.length) return true;
-  return words.filter(lw => buf.some(bw => wordsMatch(bw, lw))).length / words.length >= MATCH_RATIO;
+  // also check: if ANY single word from buf matches ANY word in the ayah, count it
+  const matched = words.filter(lw => buf.some(bw => wordsMatch(bw, lw))).length;
+  return matched / words.length >= MATCH_RATIO;
 }
 
 // ══════════════════════════════════════════════════════
@@ -890,23 +894,19 @@ function setupVoice() {
       txt = txt.trim();
       if (!txt) continue;
 
-      if (e.results[i].isFinal) {
-        const words = tokeniseAr(txt);
+      // Always push to buffer for matching — both interim and final
+      // On iOS, isFinal often never fires; on desktop both work
+      const words = tokeniseAr(txt);
+      if (words.length) {
         voiceBuffer.push(...words);
         if (voiceBuffer.length > BUF_MAX) voiceBuffer = voiceBuffer.slice(-BUF_MAX);
         scheduleVoiceDrain();
+      }
+
+      if (e.results[i].isFinal) {
+        // final result already pushed above
       } else {
         interimTxt += ' ' + txt;
-        // iOS Safari: isFinal often never fires for short ayahs
-        // process interim immediately too
-        if (isIOS) {
-          const words = tokeniseAr(txt);
-          if (words.length) {
-            voiceBuffer.push(...words);
-            if (voiceBuffer.length > BUF_MAX) voiceBuffer = voiceBuffer.slice(-BUF_MAX);
-            scheduleVoiceDrain();
-          }
-        }
       }
     }
     if (interimTxt.trim()) {
@@ -952,11 +952,10 @@ function scheduleIosRestart() {
   iosRestartTimer = setTimeout(() => {
     if (!recognizing) return;
     try { recognition.start(); } catch(e) {
-      // recognition object may be dead on iOS — rebuild it
       setupVoice();
       try { recognition.start(); } catch(e2) {}
     }
-  }, 300);
+  }, 80); // fast restart — minimize gap between utterances
 }
 
 function scheduleVoiceDrain() {
@@ -966,6 +965,14 @@ function scheduleVoiceDrain() {
 function voiceDrainStep() {
   if (curIdx >= ayahs.length) return;
   const ayahText = ayahs[curIdx]?.text || '';
+
+  // DEBUG: show normalized form of current ayah vs buffer
+  if (window._debugVoice) {
+    const expected = tokeniseAr(ayahText).filter(isMeaningful).join(' · ');
+    const heard    = voiceBuffer.slice(-8).join(' · ');
+    setVoiceStatus(`📖 ${expected}\n🎙 ${heard}`);
+  }
+
   if (!ayahMatches(ayahText, voiceBuffer)) return;
 
   const wait = Math.max(0, MIN_GAP_MS - (Date.now() - lastVoiceAdvance));
@@ -1127,6 +1134,19 @@ micBtn.addEventListener('click', toggleMic);
 jumpBtn.addEventListener('click', openJump);
 jumpCancel.addEventListener('click', ()=>jumpPanel.classList.remove('vis'));
 jumpGo.addEventListener('click', doJump);
+
+// Triple-tap voice hint to toggle debug mode (see what's being matched)
+let _vhTapCount = 0, _vhTapTimer;
+voiceHint.addEventListener('click', () => {
+  _vhTapCount++;
+  clearTimeout(_vhTapTimer);
+  _vhTapTimer = setTimeout(() => { _vhTapCount = 0; }, 600);
+  if (_vhTapCount >= 3) {
+    _vhTapCount = 0;
+    window._debugVoice = !window._debugVoice;
+    flash(window._debugVoice ? '🔍 Debug ON' : '🔍 Debug OFF');
+  }
+});
 
 // Tap ayah
 ayahContainer.addEventListener('click', e => {
